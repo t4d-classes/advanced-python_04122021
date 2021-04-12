@@ -1,0 +1,10 @@
+{
+    "python.pythonPath": "c:\\Users\\ericwgreene\\git\\advanced-python_04122021\\ratesapp\\venv\\Scripts\\python.exe",
+    "python.linting.mypyEnabled": true,
+    "python.linting.mypyArgs": [
+        "--ignore-missing-imports",
+        "--follow-imports=silent",
+        "--show-column-numbers",
+        "--strict"
+    ]
+}
