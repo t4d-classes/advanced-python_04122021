@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from timedelta_demos.business_days import business_days, business_days_list
 
 # nums = [1,2,3,4,5]
 
@@ -10,16 +11,25 @@ from datetime import datetime, timedelta
 
 def main():
 
-    start = datetime.now()
+    start_date = date(2019, 1, 1)
+    end_date = date(2019, 2, 28)
 
-    end = start + timedelta(days=4)
+    # for working_day in business_days(start_date, end_date):
+    #     print(working_day.strftime("%A, %d %B %Y"))
 
-    print(start)
-    print(end)
+    business_days_iterator = business_days(start_date, end_date)
 
-    print(end - start)
+    print(next(business_days_iterator))
+    print(next(business_days_iterator))
+    print(next(business_days_iterator))
 
-    print(end.weekday())
+
+    # start = datetime.now()
+    # end = start + timedelta(days=4)
+    # print(start)
+    # print(end)
+    # print(end - start)
+    # print(end.weekday())
 
 
 if __name__ == "__main__":
