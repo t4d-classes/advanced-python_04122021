@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 from typing import Generator
 import holidays
+import requests
 
 
 def business_days(start_date: date,
@@ -19,13 +20,31 @@ def business_days(start_date: date,
 def main() -> None:
     """Main Function"""
 
+    rates: list[str] = []
+
     start_date = date(2019, 1, 1)
     end_date = date(2019, 2, 28)
 
-    working_days = business_days(start_date, end_date)
+    # https://api.ratesapi.io/api/2019-01-01?base=USD&symbols=EUR
 
-    for working_day in working_days:
-        print(working_day.strftime("%A, %d %B %Y"))
+    for business_day in business_days(start_date, end_date):
+
+        day_fmt = business_day.strftime("%Y-%m-%d")
+
+        rate_url = "".join([
+            # "https://api.ratesapi.io/api/",
+            "http://127.0.0.1:5000/api/",
+            day_fmt,
+            "?base=USD&symbols=EUR",
+        ])
+
+        response = requests.request("GET", rate_url)
+        rates.append(response.text)
+
+    for rate in rates:
+        print(rate)
+
+    print(len(rates))
 
 
 if __name__ == '__main__':

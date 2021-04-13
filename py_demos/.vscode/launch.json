@@ -5,6 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Module: request_demos.get_website",
+            "type": "python",
+            "request": "launch",
+            "module": "request_demos.get_website"
+        },
+        {
             "name": "Python Module: timedelta_demos.time_delta",
             "type": "python",
             "request": "launch",

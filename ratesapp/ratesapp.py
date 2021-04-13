@@ -45,8 +45,9 @@ def rates_by_date(rate_date: str) -> Any:
                 if country_code != "Date" and country_code in country_symbols }
 
             return jsonify({
-                "Date": rate["Date"],
-                **country_rates,
+                "date": rate["Date"],
+                "base": base_country,
+                "rates": country_rates,
             })
     
     abort(404)

@@ -19,3 +19,8 @@ Iterate over a range of business days, and run the above request for each day.
 5. Compare the output from "api.ratesapi.io" and the API we built in class. What is different? Update the API we coded to output the response in the same structure as "api.ratesapi.io".
 
 6. Test your rates client code with both APIs. Ensure both APIs work with no code changes.
+
+To run the Flask app from the project folder in the terminal:
+
+$env:FLASK_APP = "ratesapp.py"
+python -m flask run
