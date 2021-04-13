@@ -32,8 +32,8 @@ def main() -> None:
         day_fmt = business_day.strftime("%Y-%m-%d")
 
         rate_url = "".join([
-            # "https://api.ratesapi.io/api/",
-            "http://127.0.0.1:5000/api/",
+            "https://api.ratesapi.io/api/",
+            # "http://127.0.0.1:5000/api/",
             day_fmt,
             "?base=USD&symbols=EUR",
         ])
