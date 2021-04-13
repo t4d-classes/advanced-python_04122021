@@ -1,9 +1,20 @@
 """Main Module"""
-from datetime import date, timedelta
-from typing import Generator
+from datetime import date, timedelta, datetime
+from typing import Generator, TypedDict
 import threading
+import queue
+import json
 import holidays
 import requests
+
+
+class Rate(TypedDict):
+    """ rate typed dict type """
+    date: date
+    eur: float
+
+
+raw_rate_responses_done = threading.Event()
 
 
 def business_days(start_date: date,
@@ -18,7 +29,7 @@ def business_days(start_date: date,
             yield the_date
 
 
-def get_rates_by_day(business_day: date, rates: list[str]) -> None:
+def get_rates_by_day(business_day: date, rates: queue.Queue[str]) -> None:
     """ get rates from api for a given day """
     day_fmt = business_day.strftime("%Y-%m-%d")
 
@@ -30,13 +41,36 @@ def get_rates_by_day(business_day: date, rates: list[str]) -> None:
     ])
 
     response = requests.request("GET", rate_url)
-    rates.append(response.text)
+    rates.put(response.text)
+
+
+def process_rates(raw_rates: queue.Queue[str],
+                  processed_rates: list[Rate]) -> None:
+    """ process rates """
+    while True:
+
+        try:
+            raw_rate_data = raw_rates.get(timeout=1)
+            rate = json.loads(raw_rate_data)
+            processed_rates.append({
+                "date": datetime.strptime(rate["date"], "%Y-%m-%d").date(),
+                "eur": rate["rates"]["EUR"]
+            })
+            raw_rates.task_done()
+        except queue.Empty:
+            if raw_rate_responses_done.is_set():
+                break
+            else:
+                continue
 
 
 def main() -> None:
     """Main Function"""
 
-    rates: list[str] = []
+    # rates: list[str] = []
+    raw_rate_responses: queue.Queue[str] = queue.Queue()
+    processed_rates: list[Rate] = []
+
     get_rate_threads: list[threading.Thread] = []
 
     start_date = date(2019, 1, 1)
@@ -45,17 +79,28 @@ def main() -> None:
     for business_day in business_days(start_date, end_date):
         get_rate_thread = threading.Thread(
             target=get_rates_by_day, args=(
-                business_day, rates))
+                business_day, raw_rate_responses))
         get_rate_thread.start()
         get_rate_threads.append(get_rate_thread)
+
+    process_rates_thread = threading.Thread(
+        target=process_rates,
+        args=(
+            raw_rate_responses,
+            processed_rates))
+    process_rates_thread.start()
 
     for get_rate_thread in get_rate_threads:
         get_rate_thread.join()
 
-    for rate in rates:
+    raw_rate_responses_done.set()
+
+    process_rates_thread.join()
+
+    for rate in processed_rates:
         print(rate)
 
-    print(len(rates))
+    print(len(processed_rates))
 
 
 if __name__ == '__main__':
