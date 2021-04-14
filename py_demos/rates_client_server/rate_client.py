@@ -22,6 +22,8 @@ try:
         client_socket.close()
 except ConnectionResetError:
     print("Server connection was closed.")
+except ConnectionRefusedError:
+    print("Server is not running.")
 except KeyboardInterrupt:
     pass
 
