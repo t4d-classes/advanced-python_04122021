@@ -50,14 +50,16 @@ def main() -> None:
             if command == "start":
                 # step 1 - create a new process object and assign to
                 # "server_process"
-                command_start_server(server_process)
+                # command_start_server(server_process)
+                print("starting")
             elif command == "stop":
-                command_stop_server(server_process)
-                server_process = None
+                # command_stop_server(server_process)
+                # server_process = None
             # step 4 - add a command named "status" that outputs to the
             # console if the server is current running or not
             # hint: follow the command function pattern used by the other
             # commands
+                print("stopping")
             elif command == "exit":
                 # step 2 - terminate the "server_process" if the
                 # "server_process" is an object and is alive
