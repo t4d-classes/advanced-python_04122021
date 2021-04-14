@@ -17,9 +17,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket_server:
     try:
         while True:
             data = conn.recv(2048)
+            response = data.decode('UTF-8') + ";"
             if not data:
                 break
-            conn.sendall(data)
+            conn.sendall(response.encode("UTF-8"))
     except OSError:
         pass
 
