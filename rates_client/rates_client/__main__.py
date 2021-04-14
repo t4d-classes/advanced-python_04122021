@@ -1,107 +1,69 @@
-"""Main Module"""
-from datetime import date, timedelta, datetime
-from typing import Generator, TypedDict
-import threading
-import queue
-import json
-import holidays
+from datetime import timedelta, date, datetime
+from typing import Generator
+from typing import TypedDict
 import requests
+import holidays
+import json
+import pathlib
+import csv
+import time
 
 
 class Rate(TypedDict):
-    """ rate typed dict type """
     date: date
     eur: float
 
 
-raw_rate_responses_done = threading.Event()
+raw_rate_responses: list[str] = []
+processed_rates: list[Rate] = []
 
 
 def business_days(start_date: date,
                   end_date: date) -> Generator[date, None, None]:
-    """ determines the business days for a given date range """
-
     us_holidays = holidays.UnitedStates()
-
-    for num in range((end_date - start_date).days + 1):
-        the_date = start_date + timedelta(days=num)
+    for n in range((end_date - start_date).days + 1):
+        the_date = start_date + timedelta(n)
         if (the_date.weekday() < 5) and (the_date not in us_holidays):
             yield the_date
 
 
-def get_rates_by_day(business_day: date, rates: queue.Queue[str]) -> None:
-    """ get rates from api for a given day """
-    day_fmt = business_day.strftime("%Y-%m-%d")
-
-    rate_url = "".join([
-        "https://api.ratesapi.io/api/",
-        # "http://127.0.0.1:5000/api/",
-        day_fmt,
-        "?base=USD&symbols=EUR",
-    ])
-
-    response = requests.request("GET", rate_url)
-    rates.put(response.text)
+def get_rates() -> None:
+    start_date = date(2019, 1, 1)
+    end_date = date(2019, 6, 30)
+    for single_date in business_days(start_date, end_date):
+        single_date_str = single_date.strftime("%Y-%m-%d")
+        url = f"https://api.ratesapi.io/api/{single_date_str}?base=USD&symbols=EUR"
+        response = requests.request("GET", url)
+        raw_rate_responses.append(response.text)
 
 
-def process_rates(raw_rates: queue.Queue[str],
-                  processed_rates: list[Rate]) -> None:
-    """ process rates """
-    while True:
+def process_rates() -> None:
 
-        try:
-            raw_rate_data = raw_rates.get(timeout=1)
-            rate = json.loads(raw_rate_data)
-            processed_rates.append({
-                "date": datetime.strptime(rate["date"], "%Y-%m-%d").date(),
-                "eur": rate["rates"]["EUR"]
-            })
-            raw_rates.task_done()
-        except queue.Empty:
-            if raw_rate_responses_done.is_set():
-                break
-            else:
-                continue
+    for rate_data in raw_rate_responses:
+        rate = json.loads(rate_data)
+        processed_rates.append({
+            "date": datetime.strptime(rate["date"], "%Y-%m-%d").date(),
+            "eur": rate["rates"]["EUR"],
+        })
+
+
+def save_rates() -> None:
+    with open(pathlib.Path("output", "rates.csv"), "w", newline="\n") as rates_file:
+        rates_csv = csv.writer(rates_file)
+        for rate in processed_rates:
+            rates_csv.writerow(rate.values())
 
 
 def main() -> None:
-    """Main Function"""
 
-    # rates: list[str] = []
-    raw_rate_responses: queue.Queue[str] = queue.Queue()
-    processed_rates: list[Rate] = []
-
-    get_rate_threads: list[threading.Thread] = []
-
-    start_date = date(2019, 1, 1)
-    end_date = date(2019, 2, 28)
-
-    for business_day in business_days(start_date, end_date):
-        get_rate_thread = threading.Thread(
-            target=get_rates_by_day, args=(
-                business_day, raw_rate_responses))
-        get_rate_thread.start()
-        get_rate_threads.append(get_rate_thread)
-
-    process_rates_thread = threading.Thread(
-        target=process_rates,
-        args=(
-            raw_rate_responses,
-            processed_rates))
-    process_rates_thread.start()
-
-    for get_rate_thread in get_rate_threads:
-        get_rate_thread.join()
-
-    raw_rate_responses_done.set()
-
-    process_rates_thread.join()
-
-    for rate in processed_rates:
-        print(rate)
-
-    print(len(processed_rates))
+    get_rates()
+    process_rates()
+    save_rates()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    start_time = time.time()
     main()
+    total_time = time.time() - start_time
+
+    print(total_time)
