@@ -1,29 +1,45 @@
 """ rate server module """
 from typing import Optional
 import multiprocessing as mp
+import socket
 import sys
 
 
-def rate_server() -> None:
+# Create "ClientConnectionThread" class that inherits from "Thread"
+
+# Each time a client connects, a new thread should be created with the
+# "ClientConnectionThread" class. The class is responsible for sending the
+# welcome message and interacting with the client, echoing messages
+
+# Use a multiprocessing shared "Value" object to track the count of
+# connected clients
+# increment the count when a client connects, and decrement the count when
+# a client disconnects
+# add new server command named "count" that displays the count of
+# connected clients
+
+
+def rate_server(host: str, port: int) -> None:
     """rate server"""
 
-    # implement socket server
-    # the host and port should be received as parameters into this function
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket_server:
 
-    # - use "AF_INET" for IPv4
-    # - use "SOCK_STREAM" for TCP
-    # - use SOL_SOCKET and SO_REUSEADDR constants to tell the kernel to reuse
-    #   a socket in a TIME_WAIT state (socket closed on this side)
-    #   hint: pass a 1 for the last argument as demonstrated
+        socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        socket_server.bind((host, port))
+        socket_server.listen(100)
 
-    # when a client connects, send the following string:
-    #     "Connected to the Rate Server"
+        conn, _ = socket_server.accept()
 
-    # wire up an echo server which receives a string and echos back to
-    # the client the string that is received
+        conn.sendall(b"Connected to the Rate Server")
 
-    while True:
-        pass
+        try:
+            while True:
+                data = conn.recv(2048)
+                if not data:
+                    break
+                conn.sendall(data)
+        except OSError:
+            pass
 
 
 class RateServerError(Exception):
