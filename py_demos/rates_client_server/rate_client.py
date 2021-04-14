@@ -1,14 +1,13 @@
 """ rate client module """
-import sys
 import socket
+import sys
 
 try:
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket_client:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
+        client_socket.connect(("localhost", 5000))
 
-        socket_client.connect(("127.0.0.1", 5000))
-
-        print(socket_client.recv(2048).decode("UTF-8"))
+        print(client_socket.recv(2048).decode("UTF-8"))
 
         while True:
 
@@ -17,12 +16,12 @@ try:
             if command == "exit":
                 break
             else:
-                socket_client.sendall(command.encode("UTF-8"))
-                print(socket_client.recv(2048).decode("UTF-8"))
+                client_socket.sendall(command.encode("UTF-8"))
+                print(client_socket.recv(2048).decode("UTF-8"))
 
-
+        client_socket.close()
 except ConnectionResetError:
-    pass
+    print("Server connection was closed.")
 except KeyboardInterrupt:
     pass
 

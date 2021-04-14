@@ -12,7 +12,7 @@ import requests
 CLIENT_COMMAND_PARTS = [
     r"(?P<name>[A-Z]*) ",
     r"(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}) ",
-    r"(?P<symbol>[A-Z]{3})",
+    r"(?P<symbol>[A-Z]{3})$",
 ]
 
 CLIENT_COMMAND_REGEX = re.compile("".join(CLIENT_COMMAND_PARTS))
@@ -44,7 +44,6 @@ class ClientConnectionThread(threading.Thread):
                 else:
                     self.process_client_command(client_command_match.groupdict())
 
-                self.conn.sendall(data)
         except OSError:
             pass
         
