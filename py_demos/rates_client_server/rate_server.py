@@ -1,10 +1,21 @@
 """ rate server module """
-from typing import Optional
+from typing import Optional, Any
 from multiprocessing.sharedctypes import Synchronized # type: ignore
 import multiprocessing as mp
 import sys
 import socket
 import threading
+import re
+import json
+import requests
+
+CLIENT_COMMAND_PARTS = [
+    r"(?P<name>[A-Z]*) ",
+    r"(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}) ",
+    r"(?P<symbol>[A-Z]{3})",
+]
+
+CLIENT_COMMAND_REGEX = re.compile("".join(CLIENT_COMMAND_PARTS))
 
 class ClientConnectionThread(threading.Thread):
     """ client connection thread """
@@ -20,20 +31,44 @@ class ClientConnectionThread(threading.Thread):
         try:
             while True:
                 data = self.conn.recv(2048)
+                
                 if not data:
                     break
+
+                client_command_str: str = data.decode("UTF-8")
+
+                client_command_match = CLIENT_COMMAND_REGEX.match(client_command_str)
+
+                if not client_command_match:
+                    self.conn.sendall(b"invalid command format")
+                else:
+                    self.process_client_command(client_command_match.groupdict())
+
                 self.conn.sendall(data)
         except OSError:
             pass
         
-        # with self.client_count.get_lock():
-        #     self.client_count.value -= 1
+        with self.client_count.get_lock():
+            self.client_count.value -= 1
 
-        c_count = self.client_count.value
+    def process_client_command(self, client_command: dict[str, Any]) -> None:
+        
+        if client_command["name"] == "GET":
 
-        c_count -= 1
+            url = "".join([
+                "https://api.ratesapi.io/api/",
+                client_command["date"],
+                "?base=USD&symbols=",
+                client_command["symbol"],
+            ])
 
-        self.client_count.value = c_count
+            response = requests.request("GET", url)
+            rate_data = json.loads(response.text)
+
+            self.conn.sendall(str(rate_data["rates"][client_command["symbol"]]).encode("UTF-8"))
+
+        else:
+            self.conn.sendall(b"invalid command name")
 
 
 def rate_server(host: str, port: int, client_count: Synchronized) -> None:
