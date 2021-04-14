@@ -6,6 +6,22 @@ import sys
 
 def rate_server() -> None:
     """rate server"""
+
+    # implement socket server
+    # the host and port should be received as parameters into this function
+
+    # - use "AF_INET" for IPv4
+    # - use "SOCK_STREAM" for TCP
+    # - use SOL_SOCKET and SO_REUSEADDR constants to tell the kernel to reuse
+    #   a socket in a TIME_WAIT state (socket closed on this side)
+    #   hint: pass a 1 for the last argument as demonstrated
+
+    # when a client connects, send the following string:
+    #     "Connected to the Rate Server"
+
+    # wire up an echo server which receives a string and echos back to
+    # the client the string that is received
+
     while True:
         pass
 
@@ -20,7 +36,7 @@ def command_start_server(server_process: Optional[mp.Process]) -> None:
     if server_process and server_process.is_alive():
         print("server is already running")
     elif server_process:
-        # step 3 - start the "server_process"
+        server_process.start()
         print("server started")
     else:
         raise RateServerError("server process cannot be null")
@@ -36,6 +52,14 @@ def command_stop_server(server_process: Optional[mp.Process]) -> None:
         print("server stopped")
 
 
+def command_server_status(server_process: Optional[mp.Process]) -> None:
+    """ command server status """
+    if server_process and server_process.is_alive():
+        print("server is running")
+    else:
+        print("server is stopped")
+
+
 def main() -> None:
     """Main Function"""
 
@@ -48,27 +72,22 @@ def main() -> None:
             command = input("> ")
 
             if command == "start":
-                # step 1 - create a new process object and assign to
-                # "server_process"
-                # command_start_server(server_process)
-                print("starting")
+                server_process = mp.Process(target=rate_server,
+                                            args=("localhost", 5000))
+                command_start_server(server_process)
             elif command == "stop":
-                # command_stop_server(server_process)
-                # server_process = None
-            # step 4 - add a command named "status" that outputs to the
-            # console if the server is current running or not
-            # hint: follow the command function pattern used by the other
-            # commands
-                print("stopping")
+                command_stop_server(server_process)
+                server_process = None
+            elif command == "status":
+                command_server_status(server_process)
             elif command == "exit":
-                # step 2 - terminate the "server_process" if the
-                # "server_process" is an object and is alive
+                if server_process and server_process.is_alive():
+                    server_process.terminate()
                 break
 
     except KeyboardInterrupt:
-        # step 5 - terminate the "server_process" if the
-        # "server_process" is an object and is alive
-        pass
+        if server_process and server_process.is_alive():
+            server_process.terminate()
 
     sys.exit(0)
 
