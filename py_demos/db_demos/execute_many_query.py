@@ -49,8 +49,21 @@ with pyodbc.connect(conn_string) as con:
     # with con.cursor() as cur:
     #     cur.executemany(sql, lots_of_rates)
 
-    rates = con.execute("select CurrencySymbol as currency_symbol from rates")
+    # rates = con.execute("select CurrencySymbol as currency_symbol from rates")
 
-    for rate in rates:
-        # print(rate[2])
-        print(rate.currency_symbol)
+    # for rate in rates:
+    #     # print(rate[2])
+    #     print(rate.currency_symbol)
+
+    with con.cursor() as cur:
+        cur.execute("select CurrencySymbol as currency_symbol from rates where ratesid = -1")
+        print(cur.fetchone())
+
+    # rst = con.execute("select CurrencySymbol as currency_symbol from rates where ratesid = -1")
+    # print(next(rst))
+
+    rst = con.execute("select count(*) from rates where ratesid = -1")
+    print(list(rst))
+
+    rst = con.execute("select CurrencySymbol from rates where ratesid = -1")
+    print(list(rst))        

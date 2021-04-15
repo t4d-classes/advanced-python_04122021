@@ -20,6 +20,15 @@ import requests
 # If the exchange rate is not in the database, then download it, add it to
 # the database and return it
 
+# Here are two options to check if a record is in the database:
+
+with con.cursor() as cur:
+    cur.execute("select CurrencySymbol as currency_symbol from rates where ratesid = -1")
+    print(cur.fetchone())
+
+rst = con.execute("select * from rates where ratesid = -1")
+print(list(rst))
+
 # Task 2 - Clear Rate Cache
 
 # Add a command for clearing the rate cache from the server command

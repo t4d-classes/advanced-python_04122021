@@ -1,9 +1,9 @@
 """ rate server module """
 from typing import Optional, Any
 from multiprocessing.sharedctypes import Synchronized  # type: ignore
-from datetime import datetime, date
-from decimal import Decimal
+from datetime import datetime
 import multiprocessing as mp
+import decimal
 import socket
 import threading
 import sys
@@ -25,31 +25,10 @@ RATESAPP_CONN_STRING = ";".join(RATESAPP_CONN_OPTIONS)
 CLIENT_COMMAND_PARTS = [
     r"^(?P<name>[A-Z]*) ",
     r"(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}) ",
-    r"(?P<symbols>[A-Z,:;|]*)$",
+    r"(?P<symbol>[A-Z]{3})$",
 ]
 
 CLIENT_COMMAND_REGEX = re.compile("".join(CLIENT_COMMAND_PARTS))
-
-
-def get_rate_from_api(closing_date: date, currency_symbol: str,
-                      currency_rates: list[tuple[date, str, Decimal]]) -> None:
-    """ get rate from api """
-
-    url = "".join([
-        "https://api.ratesapi.io/api/",
-        closing_date.strftime("%Y-%m-%d"),
-        "?base=USD&symbols=",
-        currency_symbol,
-    ])
-
-    response = requests.request("GET", url)
-
-    rate_data = json.loads(response.text)
-
-    currency_rates.append(
-        (closing_date,
-         currency_symbol,
-         Decimal(str(rate_data["rates"][currency_symbol]))))
 
 
 class ClientConnectionThread(threading.Thread):
@@ -100,71 +79,51 @@ class ClientConnectionThread(threading.Thread):
 
                 closing_date = datetime.strptime(
                     client_command["date"], "%Y-%m-%d")
-
-                currency_symbols_re = re.compile(r"[,:;|]")
-
-                currency_symbols = currency_symbols_re.split(
-                    client_command["symbols"])
-
-                sql_params: list[Any] = [closing_date]
-                sql_params.extend(currency_symbols)
-
-                placeholders = ",".join("?" * len(currency_symbols))
+                currency_symbol = str(client_command["symbol"])
 
                 sql = " ".join([
                     "select closingdate, currencysymbol, exchangerate",
                     "from rates",
-                    "where closingdate = ? ",
-                    f"and currencysymbol in ({placeholders})"])
+                    "where closingdate = ? and currencysymbol = ?"])
 
-                cached_currency_symbols: set[str] = set()
+                cur = con.cursor()
 
-                rate_responses = []
+                cur.execute(sql, (closing_date, currency_symbol))
 
-                with con.cursor() as cur:
+                rate = cur.fetchone()
 
-                    for rate in cur.execute(sql, sql_params):
-                        cached_currency_symbols.add(rate.currencysymbol)
-                        exchange_rate = str(rate.exchangerate)
-                        rate_responses.append(
-                            f"{rate.currencysymbol}: {exchange_rate}")
+                if rate:
+                    exchange_rate = str(rate.exchangerate)
+                    self.conn.sendall(exchange_rate.encode("UTF-8"))
+                    return
 
-                currency_rate_threads: list[threading.Thread] = []
-                currency_rates: list[tuple[date, str, Decimal]] = []
+                url = "".join([
+                    "https://api.ratesapi.io/api/",
+                    client_command["date"],
+                    "?base=USD&symbols=",
+                    client_command["symbol"],
+                ])
 
-                for currency_symbol in currency_symbols:
-                    if currency_symbol not in cached_currency_symbols:
+                response = requests.request("GET", url)
 
-                        currency_rate_thread = threading.Thread(
-                            target=get_rate_from_api,
-                            args=(closing_date,
-                                  currency_symbol, currency_rates))
+                rate_data = json.loads(response.text)
 
-                        currency_rate_thread.start()
-                        currency_rate_threads.append(currency_rate_thread)
+                sql = " ".join([
+                    "insert into rates",
+                    "(closingdate, currencysymbol, exchangerate)",
+                    "values",
+                    "(?, ?, ?)",
+                ])
 
-                for currency_rate_thread in currency_rate_threads:
-                    currency_rate_thread.join()
+                exchange_rate = decimal.Decimal(  # type: ignore
+                    str(rate_data["rates"][client_command["symbol"]]))
 
-                if len(currency_rates) > 0:
-
-                    with con.cursor() as cur:
-
-                        sql = " ".join([
-                            "insert into rates",
-                            "(closingdate, currencysymbol, exchangerate)",
-                            "values",
-                            "(?, ?, ?)",
-                        ])
-
-                        cur.executemany(sql, currency_rates)
-
-                    for currency in currency_rates:
-                        rate_responses.append(
-                            f"{currency[1]}: {currency[2]}")
+                con.execute(
+                    sql, (closing_date, currency_symbol, exchange_rate))
 
                 self.conn.sendall(
-                    "\n".join(rate_responses).encode("UTF-8"))
+                    str(rate_data["rates"][client_command["symbol"]])
+                    .encode("UTF-8"))
         else:
             self.conn.sendall(b"Invalid Command Name")
 
@@ -229,15 +188,6 @@ def command_client_count(client_count: int) -> None:
     print(f"client count: {client_count}")
 
 
-def command_clear_cache() -> None:
-    """ command clear cache """
-
-    with pyodbc.connect(RATESAPP_CONN_STRING) as con:
-        con.execute("delete from rates")
-
-    print("cache cleared")
-
-
 def main() -> None:
     """Main Function"""
 
@@ -262,8 +212,6 @@ def main() -> None:
                 command_server_status(server_process)
             elif command == "count":
                 command_client_count(client_count.value)
-            elif command == "clear":
-                command_clear_cache()
             elif command == "exit":
                 if server_process and server_process.is_alive():
                     server_process.terminate()
