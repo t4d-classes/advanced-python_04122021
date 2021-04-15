@@ -1,34 +1,56 @@
 """ rate server module """
-from typing import Optional
+from typing import Optional, Any
 from multiprocessing.sharedctypes import Synchronized  # type: ignore
 import multiprocessing as mp
 import socket
 import threading
 import sys
+import re
+import json
+import requests
 
-# Add support the following client command
+# Task 1 - Cache Rate Results
 
-# GET 2019-01-03 EUR
+# Upgrade the application to check the database for a given exchange rate
+# (year, currency)
 
-# GET is the command name
-# 2019-01-03 is the date of the current rates to retrieve
-# EUR is the currency symbol to retrieve, DO NOT USE USD
+# If the exchange rate was previously retrieved and stored in the
+# database, then return it
 
-# Call the Rates API using the USD as the base to get the currency rate
-# for the specified year
+# If the exchange rate is not in the database, then download it, add it to
+# the database and return it
 
-# Ideally your code will do the following:
+# Task 2 - Clear Rate Cache
 
-# 1. Use a regular expression with named capture groups to extract parts
-# of the command
+# Add a command for clearing the rate cache from the server command
+# prompt. Name the command "clear".
 
-# 2. Add a function named "process_client_command" to
-# "ClientConnectionThread" that will process the parsed command including
-# calling the API, extracting the API response, and send back the rate
-# value to the client
+# Task 3 - Add support for getting multiple rates using the following
+# example command structures. Be sure to implement caching.
 
-# 3. Send back an error message for an incorrectly formatted command or an
-# unsupported command name (only the GET command is supported)
+# GET 2021-04-01 CAD,EUR,RUB
+# GET 2021-04-01 CAD;EUR;RUB
+# GET 2021-04-01 CAD|EUR|RUB
+# GET 2021-04-01 CAD:EUR;RUB
+# GET 2021-04-01 CAD|EUR:RUB
+
+# From the examples above, observe how the separator for the symbols can
+# be ":", ";", "|", or ",". In any combination. Consider using some of the
+# Regex examples we reviewed in class.
+
+# Hint: Public API can be called like this:
+# https://api.ratesapi.io/api/2010-01-12?base=USD&symbols=EUR,GBP
+
+# Hint: To add multiple cache entries, consider using the execute many API
+
+
+CLIENT_COMMAND_PARTS = [
+    r"^(?P<name>[A-Z]*) ",
+    r"(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}) ",
+    r"(?P<symbol>[A-Z]{3})$",
+]
+
+CLIENT_COMMAND_REGEX = re.compile("".join(CLIENT_COMMAND_PARTS))
 
 
 class ClientConnectionThread(threading.Thread):
@@ -49,14 +71,48 @@ class ClientConnectionThread(threading.Thread):
         try:
             while True:
                 data = self.conn.recv(2048)
+
                 if not data:
                     break
-                self.conn.sendall(data)
+
+                client_command_str: str = data.decode('UTF-8')
+
+                client_command_match = CLIENT_COMMAND_REGEX.match(
+                    client_command_str)
+
+                if not client_command_match:
+                    self.conn.sendall(b"Invalid Command Format")
+                else:
+                    self.process_client_command(
+                        client_command_match.groupdict())
+
         except OSError:
             pass
 
         with self.client_count.get_lock():
             self.client_count.value -= 1
+
+    def process_client_command(self, client_command: dict[str, Any]) -> None:
+        """ process client command """
+
+        if client_command["name"] == "GET":
+
+            url = "".join([
+                "https://api.ratesapi.io/api/",
+                client_command["date"],
+                "?base=USD&symbols=",
+                client_command["symbol"],
+            ])
+
+            response = requests.request("GET", url)
+
+            rate_data = json.loads(response.text)
+
+            self.conn.sendall(
+                str(rate_data["rates"][client_command["symbol"]])
+                .encode("UTF-8"))
+        else:
+            self.conn.sendall(b"Invalid Command Name")
 
 
 def rate_server(host: str, port: int, client_count: Synchronized) -> None:
