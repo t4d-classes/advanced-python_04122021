@@ -1,11 +1,23 @@
 """ rate client module """
 import socket
 import sys
+import pathlib
+import yaml
 
 try:
 
+    host = None
+    port = None
+
+    with open(pathlib.Path("config", "rates_config.yaml")) as yaml_file:
+        config = yaml.load(yaml_file, Loader=yaml.SafeLoader)
+        print(config)
+        host = config["server"]["host"]
+        port = int(config["server"]["port"])
+
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-        client_socket.connect(("localhost", 5000))
+        client_socket.connect((host, port))
 
         print(client_socket.recv(2048).decode("UTF-8"))
 

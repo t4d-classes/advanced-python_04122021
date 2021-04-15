@@ -12,6 +12,10 @@ import json
 import requests
 import pyodbc
 
+# lab
+
+# utilize the rates_config.yml file to load the server and database configuration information
+
 RATESAPP_CONN_OPTIONS = [
     "DRIVER={ODBC Driver 17 for SQL Server}",
     "SERVER=localhost\\SQLExpress",
