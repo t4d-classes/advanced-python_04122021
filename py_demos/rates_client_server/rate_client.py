@@ -6,12 +6,8 @@ import yaml
 
 try:
 
-    host = None
-    port = None
-
     with open(pathlib.Path("config", "rates_config.yaml")) as yaml_file:
         config = yaml.load(yaml_file, Loader=yaml.SafeLoader)
-        print(config)
         host = config["server"]["host"]
         port = int(config["server"]["port"])
 

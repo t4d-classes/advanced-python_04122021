@@ -11,17 +11,27 @@ import re
 import json
 import requests
 import pyodbc
+import pathlib
+import yaml
+import csv
 
-# lab
+# Task 2: Client Connection CSV Log
 
-# utilize the rates_config.yml file to load the server and database configuration information
+# On the server, on each client connection and disconnection, record
+# information about the connection in a CSV log with the following structure.
+
+# <thread_id>,<date>,<host>,<port>,connect
+# <thread_id>,<date>,<host>,<port>,disconnect
+
+with open(pathlib.Path("config", "rates_config.yaml")) as yaml_file:
+    config = yaml.load(yaml_file, Loader=yaml.SafeLoader)
 
 RATESAPP_CONN_OPTIONS = [
     "DRIVER={ODBC Driver 17 for SQL Server}",
-    "SERVER=localhost\\SQLExpress",
-    "DATABASE=ratesapp",
-    "UID=sa",
-    "PWD=sqldbpass",
+    f"SERVER={config['database']['server']}",
+    f"DATABASE={config['database']['database']}",
+    f"UID={config['database']['username']}",
+    f"PWD={config['database']['password']}",
 ]
 
 RATESAPP_CONN_STRING = ";".join(RATESAPP_CONN_OPTIONS)
@@ -61,10 +71,12 @@ class ClientConnectionThread(threading.Thread):
 
     def __init__(self,
                  conn: socket.socket,
+                 addr: tuple[str,int],
                  client_count: Synchronized,
                  ) -> None:
         threading.Thread.__init__(self)
         self.conn = conn
+        self.addr = addr
         self.client_count = client_count
 
     def run(self) -> None:
@@ -94,6 +106,7 @@ class ClientConnectionThread(threading.Thread):
 
         with self.client_count.get_lock():
             self.client_count.value -= 1
+            log_client_event(self.ident, self.addr[0], self.addr[1], "disconnect")
 
     def process_client_command(self, client_command: dict[str, Any]) -> None:
         """ process client command """
@@ -184,13 +197,31 @@ def rate_server(host: str, port: int, client_count: Synchronized) -> None:
 
         while True:
 
-            conn, _ = socket_server.accept()
+            conn, addr = socket_server.accept()
 
-            client_con_thread = ClientConnectionThread(conn, client_count)
+            client_con_thread = ClientConnectionThread(conn, addr, client_count)
             client_con_thread.start()
 
             with client_count.get_lock():
                 client_count.value += 1
+                log_client_event(client_con_thread.ident, addr[0], addr[1], "connect")
+
+log_client_event_lock = threading.RLock()
+
+def log_client_event(thread_id: Optional[int], host: str, port: int, msg: str) -> None:
+
+    with log_client_event_lock:
+        with open(pathlib.Path("config", "client_log.csv"), "a", newline="\n") as csv_file:
+            csv_writer = csv.writer(csv_file)
+            csv_writer.writerow((thread_id, datetime.now(), host, port, msg))
+
+    # log_client_event_lock.acquire()
+    # try:
+    #     with open(pathlib.Path("config", "client_log.csv"), "a", newline="\n") as csv_file:
+    #         csv_writer = csv.writer(csv_file)
+    #         csv_writer.writerow((thread_id, datetime.now(), host, port, msg))
+    # finally:
+    #     log_client_event_lock.release()
 
 
 class RateServerError(Exception):
@@ -256,7 +287,8 @@ def main() -> None:
 
             if command == "start":
                 server_process = mp.Process(target=rate_server,
-                                            args=("localhost", 5000,
+                                            args=(config["server"]["host"],
+                                                  int(config["server"]["port"]),
                                                   client_count))
                 command_start_server(server_process)
             elif command == "stop":
