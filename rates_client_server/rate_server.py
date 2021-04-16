@@ -78,6 +78,7 @@ class ClientConnectionThread(threading.Thread):
         self.conn.sendall(b"Connected to the Rate Server")
 
         try:
+            
             while True:
                 data = self.conn.recv(2048)
 
