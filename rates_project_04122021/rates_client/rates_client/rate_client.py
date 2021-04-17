@@ -4,17 +4,17 @@ import sys
 import pathlib
 import yaml
 
+from rates_shared.utils import read_config
+
 
 def main() -> None:
     """Main Function"""
 
     try:
 
-        with open(pathlib.Path("config", "rates_config.yaml")) as yaml_file:
-            config = yaml.load(yaml_file, Loader=yaml.SafeLoader)
-            host = config["server"]["host"]
-            port = int(config["server"]["port"])
-
+        config = read_config()
+        host = config["server"]["host"]
+        port = int(config["server"]["port"])
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect((host, port))
@@ -40,6 +40,7 @@ def main() -> None:
         pass
 
     sys.exit(0)
+
 
 if __name__ == '__main__':
     main()

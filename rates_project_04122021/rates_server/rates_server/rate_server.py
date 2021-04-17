@@ -15,8 +15,9 @@ import pathlib
 import yaml
 import csv
 
-with open(pathlib.Path("config", "rates_config.yaml")) as yaml_file:
-    config = yaml.load(yaml_file, Loader=yaml.SafeLoader)
+from rates_shared.utils import parse_command, read_config
+
+config = read_config()
 
 RATESAPP_CONN_OPTIONS = [
     "DRIVER={ODBC Driver 17 for SQL Server}",
@@ -27,14 +28,6 @@ RATESAPP_CONN_OPTIONS = [
 ]
 
 RATESAPP_CONN_STRING = ";".join(RATESAPP_CONN_OPTIONS)
-
-CLIENT_COMMAND_PARTS = [
-    r"^(?P<name>[A-Z]*) ",
-    r"(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2}) ",
-    r"(?P<symbols>[A-Z,:;|]*)$",
-]
-
-CLIENT_COMMAND_REGEX = re.compile("".join(CLIENT_COMMAND_PARTS))
 
 
 def get_rate_from_api(closing_date: date, currency_symbol: str,
@@ -63,7 +56,7 @@ class ClientConnectionThread(threading.Thread):
 
     def __init__(self,
                  conn: socket.socket,
-                 addr: tuple[str,int],
+                 addr: tuple[str, int],
                  client_count: Synchronized,
                  ) -> None:
         threading.Thread.__init__(self)
@@ -84,21 +77,24 @@ class ClientConnectionThread(threading.Thread):
 
                 client_command_str: str = data.decode('UTF-8')
 
-                client_command_match = CLIENT_COMMAND_REGEX.match(
-                    client_command_str)
+                client_command_dict = parse_command(client_command_str)
 
-                if not client_command_match:
+                if not client_command_dict:
                     self.conn.sendall(b"Invalid Command Format")
                 else:
                     self.process_client_command(
-                        client_command_match.groupdict())
+                        client_command_dict)
 
         except OSError:
             pass
 
         with self.client_count.get_lock():
             self.client_count.value -= 1
-            log_client_event(self.ident, self.addr[0], self.addr[1], "disconnect")
+            log_client_event(
+                self.ident,
+                self.addr[0],
+                self.addr[1],
+                "disconnect")
 
     def process_client_command(self, client_command: dict[str, Any]) -> None:
         """ process client command """
@@ -191,16 +187,24 @@ def rate_server(host: str, port: int, client_count: Synchronized) -> None:
 
             conn, addr = socket_server.accept()
 
-            client_con_thread = ClientConnectionThread(conn, addr, client_count)
+            client_con_thread = ClientConnectionThread(
+                conn, addr, client_count)
             client_con_thread.start()
 
             with client_count.get_lock():
                 client_count.value += 1
-                log_client_event(client_con_thread.ident, addr[0], addr[1], "connect")
+                log_client_event(
+                    client_con_thread.ident,
+                    addr[0],
+                    addr[1],
+                    "connect")
+
 
 log_client_event_lock = threading.RLock()
 
-def log_client_event(thread_id: Optional[int], host: str, port: int, msg: str) -> None:
+
+def log_client_event(
+        thread_id: Optional[int], host: str, port: int, msg: str) -> None:
 
     with log_client_event_lock:
         with open(pathlib.Path("config", "client_log.csv"), "a", newline="\n") as csv_file:
@@ -280,7 +284,8 @@ def main() -> None:
             if command == "start":
                 server_process = mp.Process(target=rate_server,
                                             args=(config["server"]["host"],
-                                                  int(config["server"]["port"]),
+                                                  int(config["server"]
+                                                      ["port"]),
                                                   client_count))
                 command_start_server(server_process)
             elif command == "stop":
